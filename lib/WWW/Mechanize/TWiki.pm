@@ -11,7 +11,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use WWW::Mechanize;
 
@@ -25,7 +25,6 @@ sub new {
 sub cgibin {
     my $self = shift;
     my $cgibin = shift;
-    my $args = @_;
 
     $self->{cgibin} = $cgibin;
 
@@ -56,7 +55,9 @@ sub getPageList
 
     $topic =~ s|^.+?__START__||s;
     $topic =~ s|<p />.+?$||s;
-    return split( /\n/, $topic );
+    my @topics = split( /\n/, $topic );
+    map { s/^\!// } @topics;
+    return @topics;
 }
 
 # maps function calls into twiki urls
