@@ -11,7 +11,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use WWW::Mechanize;
 use HTML::TableExtract;
@@ -126,6 +126,21 @@ sub AUTOLOAD {
 	die "no topic on action=[$action]" unless $topic;
 	(my $url = URI->new( "$self->{cgibin}/$action/$topic" ))->query_form( $args );
         my $response = $self->get( $url );
+
+	my $u = URI->new( $url );
+	my $error = {};
+	if ( grep { /^oops\.?/ } $u->path_segments() )
+	{
+	    my %form = $u->query_form();
+	    ( $error->{error} = $form{template} ) =~ s/^oops(.+?)/$1/;
+#	    ( $error->{error} = $form{template} ) =~ s/^oops(.+?)err/$1/;
+#	    delete $form{template};
+
+	    # convert all the named (semi-) generic param# parameters into a perl array
+	    map {
+		push @{ $error->{message} }, $form{ $_ }
+	    } sort grep { /^param\d+$/ } keys %form;
+	}
 
 #        print STDERR Data::Dumper::Dumper( $response );
 #      http://localhost/~twiki/cgi-bin/twiki/oops/TWikitestcases/ATasteOfTWiki?template=oopssaveerr&param1=Save%20attachment%20error%20/Users/twiki/Sites/htdocs/twiki/TWikitestcases/ATasteOfTWiki/TWikiInstaller.smlp%20is%20not%20writable
