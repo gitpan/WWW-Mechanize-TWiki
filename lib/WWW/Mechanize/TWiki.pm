@@ -11,9 +11,12 @@ our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
 
-our $VERSION = '0.02';
+our $VERSION = '0.05';
 
 use WWW::Mechanize;
+use HTML::TableExtract;
+
+################################################################################
 
 sub new {
     my $class = shift;
@@ -24,14 +27,21 @@ sub new {
 
 sub cgibin {
     my $self = shift;
-    my $cgibin = shift;
+    my $cgibin = shift or die "no cgibin?";
 
     $self->{cgibin} = $cgibin;
 
     return $self;
 }
 
-# pub (that's all the directories, right?)
+sub pub
+{
+    my $self = shift;
+    my $pub = shift or die "no pub?";
+
+    return $self->{pub} = $pub;
+}
+
 # config (query on page text or bin script for cgibin and pub (and anything else))
 
 sub getPageList
@@ -39,26 +49,71 @@ sub getPageList
     my $self = shift;
     my $iWeb = shift;
 
+    my $tagStartTopics = '__TOPICS__';
     my $xxx = $self->search( $iWeb, {
-	skin => 'text',# has no effect during a search :-(
-	    nosearch => 'on',
-	    nototal => 'on',
-	    scope => 'topic',
-	    search => '.+',
-	    regex => 'on',
-	    format => '!$topic',
-            separator => '$n',
-            header => '!__START__',
-} );
+	skin => '',			# has no (real/positive) effect during a search :-(
+	nosearch => 'on',
+	nototal => 'on',
+	scope => 'topic',
+	search => '.+',
+	regex => 'on',
+	format => '<topic>$topic</topic>',
+        separator => '$n',
+        header => "!$tagStartTopics",
+    } );
 
-    my $topic = $xxx->content();
+    my $topic = $xxx->content();		
+    $topic =~ s|^.+?$tagStartTopics||s;		# strip up to start tag
+    $topic =~ s|<p />.+?$||s;				# strip after formatted output
 
-    $topic =~ s|^.+?__START__||s;
-    $topic =~ s|<p />.+?$||s;
-    my @topics = split( /\n/, $topic );
-    map { s/^\!// } @topics;
+    my @topics = ();
+    while ( $topic =~ /<topic>([^<]+?)<\/topic>/gi )
+    {
+    	push @topics, $1;
+    }
+
     return @topics;
 }
+
+
+sub getAttachmentsList
+{
+    my $self = shift;
+    my $topic = shift;
+    my $parms = shift;
+
+    my @attachments = ();
+
+    my $attachments = $self->attach( $topic )->content();
+
+    my @cols = qw( Attachment Comment Attribute );
+    # qw(I Attachment Action Size Date Who Comment Attribute)
+    my $te = HTML::TableExtract->new( headers => [ @cols ] ) or die $!;
+    $te->parse( $attachments );
+
+    foreach my $row ($te->rows) 
+    {
+	my %attach = ();
+	my $idxCol = 0;
+	foreach my $col ( @cols )
+	{
+	    my $data = $row->[ $idxCol++ ];
+	    $data =~ s/^\s+//;
+	    $data =~ s/\s+$//;
+	    $attach{$col} = $data;
+	}
+	( my $attachTopic = $topic ) =~ s|\.|\/|;
+	$attach{_filename} = $attach{Attachment};
+	$attach{Attachment} = "$self->{pub}/$attachTopic/" . $attach{_filename};
+	push @attachments, {
+	        %attach,
+	    };
+    }
+
+    return @attachments;
+}
+
+################################################################################
 
 # maps function calls into twiki urls
 sub AUTOLOAD {
@@ -70,10 +125,36 @@ sub AUTOLOAD {
 	die "no cgibin" unless $self->{cgibin};
 	die "no topic on action=[$action]" unless $topic;
 	(my $url = URI->new( "$self->{cgibin}/$action/$topic" ))->query_form( $args );
-	return $self->get( $url );
+        my $response = $self->get( $url );
+
+#        print STDERR Data::Dumper::Dumper( $response );
+#      http://localhost/~twiki/cgi-bin/twiki/oops/TWikitestcases/ATasteOfTWiki?template=oopssaveerr&param1=Save%20attachment%20error%20/Users/twiki/Sites/htdocs/twiki/TWikitestcases/ATasteOfTWiki/TWikiInstaller.smlp%20is%20not%20writable
+
+#	print STDERR Data::Dumper::Dumper( $response->request );
+        $response;
     };
     goto &$AUTOLOAD;
 }
+
+
+#my $url = q{http://localhost/~twiki/cgi-bin/twiki/oops/TWikitestcases/ATasteOfTWiki?template=oopssaveerr&param1=Save%20attachment%20error%20/Users/twiki/Sites/htdocs/twiki/TWikitestcases/ATasteOfTWiki/TWikiInstaller.smlp%20is%20not%20writable&param3=3&param2=2};
+#my $u = URI->new( $url );
+#print Dumper( $u ), "\n\n\n";
+#print Dumper( $u->path_segments() );
+#if ( grep { /^oops\.?/ } $u->path_segments() )
+#{
+##    print Dumper( $u->query_form() );
+#    my %h = $u->query_form();
+#    my $error = { error => $h{template} };
+##    $error->{error} =~ s/oops(.+?)err$/$1/;
+#    delete $h{template};
+#    # convert all the param# generic parameters into an array of messages
+#    my @parms = sort grep { /^param\d+$/ } keys %h;
+#    map { push @{ $error->{message} }, $h{ $_ } } @parms;
+#        
+#    print Dumper( $error );
+#}
+
 
 sub DESTROY
 {
