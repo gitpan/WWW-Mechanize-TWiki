@@ -11,7 +11,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 use WWW::Mechanize;
 use HTML::TableExtract;
@@ -28,8 +28,10 @@ sub new {
 sub cgibin {
     my $self = shift;
     my $cgibin = shift or die "no cgibin?";
+    my $opts = shift;
 
     $self->{cgibin} = $cgibin;
+    $self->{scriptSuffix} = $opts->{scriptSuffix} || '';
 
     return $self;
 }
@@ -124,7 +126,7 @@ sub AUTOLOAD {
 	my ($self, $topic, $args) = @_;
 	die "no cgibin" unless $self->{cgibin};
 	die "no topic on action=[$action]" unless $topic;
-	(my $url = URI->new( "$self->{cgibin}/$action/$topic" ))->query_form( $args );
+	(my $url = URI->new( "$self->{cgibin}/$action$self->{scriptSuffix}/$topic" ))->query_form( $args );
         my $response = $self->get( $url );
 
 	my $u = URI->new( $url );
