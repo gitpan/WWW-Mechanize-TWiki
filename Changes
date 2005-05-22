@@ -1,4 +1,10 @@
-Revision history for Perl extension WWW::Mechanize::TWiki.
+Revision history for Perl extension WWW::Mechanize::TWiki
+
+0.09  Tue May 03 15:24:33 2005
+	- finally(!) wrote some docs
+
+0.08
+	- added support for scriptSuffix
 
 0.01  Tue Nov 23 15:36:57 2004
 	- original version; created by h2xs 1.23 with options
