@@ -4,7 +4,10 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'WWW::Mechanize::TWiki',
     VERSION_FROM      => 'lib/WWW/Mechanize/TWiki.pm', # finds $VERSION
-    PREREQ_PM         => {'WWW::Mechanize'        => '0',}, # e.g., Module::Name => 1.1
+    PREREQ_PM         => {
+	'WWW::Mechanize'        => '0',
+	'HTML::TableExtract'	=> '0',
+    },
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/WWW/Mechanize/TWiki.pm', # retrieve abstract from module
        AUTHOR         => 'Will Norris <wbniv@local>') : ()),
