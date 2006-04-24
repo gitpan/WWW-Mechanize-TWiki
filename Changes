@@ -1,5 +1,14 @@
 Revision history for Perl extension WWW::Mechanize::TWiki
 
+0.11  Sun Apr 24 17:35 2006
+	- expanded and clarified docs
+	- added several examples
+	- reduced memory usage by not keeping a browser history
+	- added authentication capability (CPAN:MIME::Base64 required for authentication)
+	- fixed some parameter default warnings
+	- getPageList() more flexible (accepts topic name filter, search, and any other parameters to %SEARCH%)
+	- cookies automatically handled by default
+
 0.09  Tue May 03 15:24:33 2005
 	- finally(!) wrote some docs
 

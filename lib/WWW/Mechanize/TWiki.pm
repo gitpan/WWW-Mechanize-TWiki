@@ -10,7 +10,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use WWW::Mechanize;
 use HTML::TableExtract;
@@ -20,15 +20,26 @@ use HTML::TableExtract;
 sub new {
     my $class = shift;
     my %args = @_;
-    my $self = $class->SUPER::new( %args );
+    my $self = $class->SUPER::new( stack_depth => 1, cookie_jar => {}, %args );
     return $self;
+}
+
+################################################################################
+
+sub credentials {
+    require MIME::Base64;
+    my $self = shift;
+    my @credentials = @_;
+
+    $self->SUPER::credentials( $self->{cgibin}, '', @credentials );
+    $self->add_header( Authorization => 'Basic ' . MIME::Base64::encode( $credentials[2] . ':' . $credentials[3] ) );
 }
 
 ################################################################################
 
 sub cgibin {
     my $self = shift;
-    my $cgibin = shift or $self->{cgibin};
+    my $cgibin = shift || $self->{cgibin};
     die "no cgibin?" unless $cgibin;
     my $opts = shift;
 
@@ -43,7 +54,7 @@ sub cgibin {
 sub pub
 {
     my $self = shift;
-    my $pub = shift or $self->{pub};
+    my $pub = shift || $self->{pub};
     die "no pub?" unless $pub;
 
     return $self->{pub} = $pub;
@@ -55,6 +66,7 @@ sub getPageList
 {
     my $self = shift;
     my $iWeb = shift;
+    my $overrides = shift || {};
 
     my $tagStartTopics = '__TOPICS__';
     my $xxx = $self->search( $iWeb, {
@@ -67,6 +79,7 @@ sub getPageList
 	format => '<topic>$topic</topic>',
         separator => '$n',
         header => "!$tagStartTopics",
+	%{$overrides},			# overrides these defaults
     } );
 
     my $topic = $xxx->content();		
@@ -133,6 +146,7 @@ sub AUTOLOAD {
 	my ($self, $topic, $args) = @_;
 	die "no cgibin" unless $self->{cgibin};
 	die "no topic on action=[$action]" unless $topic;
+	$args->{skin} = 'plain';
 	(my $url = URI->new( "$self->{cgibin}/$action$self->{scriptSuffix}/$topic" ))->query_form( $args );
         my $response = $self->get( $url );
 
@@ -176,18 +190,21 @@ WWW::Mechanize::TWiki - WWW::Mechanize subclass to navigate TWiki wikis
 
 This document describes a subclass of WWW::Mechanize.  Knowledge of WWW::Mechanize usage is assumed.
 
-  use Basename;
+  use File::Basename;
   use WWW::Mechanize::TWiki;
 
   my $mech = WWW::Mechanize::TWiki->new( agent => File::Basename::basename( $0 ), autocheck => 1 ) or die $!;
   $mech->cgibin( 'http://ntwiki.ethermage.net/~develop/cgi-bin', { scriptSuffix => '' } );
 
+  # (optional) establish credentials --- do this *after* setting cgibin
+# $mech->credentials( undef, undef, USERNAME => PASSWORD );
+
   # get a list of topics in the _default web (typically somewhere around 11 topics)
   my @topics = $mech->getPageList( '_default' );
 
   # create a new page (no modifications, just use the template)
-  my $topic = 'Tinderbox.TestsReportSvn' .$svnRev";
-  $mech->edit( "$topic", { 
+  my $topic = 'Tinderbox.TestsReportSvn' .$svnRev;
+  $mech->edit( $topic, { 
       topicparent => 'WebHome', 
       templatetopic => 'TestReportTemplate',
       formtemplate => 'TestReportForm',
@@ -203,13 +220,13 @@ This document describes a subclass of WWW::Mechanize.  Knowledge of WWW::Mechani
   } );
 
   # change a topic
-  $mech->edit( "$topic", 1 );
+  $mech->edit( $topic );
   $mech->field( text => 'New topic text' );
   $mech->click_button( value => 'Save' );
 
   # append to a topic
-  $mech->edit( "$topic", 1 );
-  my $text = $mech->field( text );
+  $mech->edit( $topic );
+  my $text = $mech->field( 'text' );
   $text .= "   * Adding to the text! `date`";
   $mech->field( text => $text );
   $mech->click_button( value => 'Save' );
@@ -238,6 +255,7 @@ on the scriptSuffix option passed to cgibin())
 
 This is the added functionality on top of CPAN:WWW::Mechanize.  
 CPAN:WWW::Mechanize functions can still be called, naturally.
+
 
 =head2 Setup / Configuration
 
@@ -298,19 +316,110 @@ the method's name and its parameters (in a hash reference) and
 forwards it using WWW::Mechanize::get().  
 
 
-
 =head2 EXPORT
 
 None by default.
+
+
+=head1 Examples
+
+=head2 upgrade_topics.pl
+
+This script 
+
+use WWW::Mechanize::TWiki;
+use Getopt::Long;
+
+my $Config;
+
+my $result = GetOptions( $Config,
+#
+                         'cgibin=s', 'scriptsuffix=s', 'web=s',
+                         'user=s', 'password=s',
+# miscellaneous/generic options
+                        'verbose|v',
+			 );
+
+my $mech = WWW::Mechanize::TWiki->new() or die $!;
+$mech->cgibin( $Config->{cgibin}, { scriptSuffix => $Config->{scriptsuffix} } );
+$mech->credentials( undef, undef, $Config->{user} => $Config->{password} ) if $Config->{user};
+
+my @topics = @ARGV
+    ? map { "$Config->{web}/$_" } @ARGV
+    : $mech->getPageList( $Config->{web} );
+
+my @errors;
+foreach my $topic ( @topics )
+{
+    print "Processing $topic\n" if $Config->{verbose};
+
+    $mech->edit( $topic );
+    $mech->field( forcenewrevision => 'on' );
+    $mech->click_button( value => 'Save' );
+    push @errors, $topic if ( $mech->status() != 200 );
+}
+print scalar @topics, " topics\n" if $Config->{verbose};
+if ( @errors )
+{
+    print STDERR "Errors processing the following topics:\n";
+    foreach my $topic ( @errors )
+    {
+        print STDERR "\t$topic\n";
+    }
+}
+
+=head2 bugbase_create_plugins_gateways.pl
+
+This script snippet is used to create a gateway topic for bugs for each TWikiExtension on twiki.org:
+_Note_ that develop.twiki.org uses TemplateLogin, and how it has to login differently than a site using credentials.
+
+use WWW::Mechanize::TWiki 0.11;
+
+my $plugin_topics = qr/.+(Plugin|Contrib|AddOn)$/;
+
+################################################################################
+
+my $mechBugsBase = WWW::Mechanize::TWiki->new( autocheck => 1 ) or die $!;
+$mechBugsBase->cgibin( 'http://develop.twiki.org/~develop/cgi-bin' );
+
+my $mechTWikiDotOrg = WWW::Mechanize::TWiki->new() or die $!;
+$mechTWikiDotOrg->cgibin( 'http://twiki.org/cgi-bin' );
+
+# login to develop.twiki.org
+$mechBugsBase->login( 'Bugs.WebHome' );
+$mechBugsBase->field( username => USERNAME );
+$mechBugsBase->field( password => PASSWORD );
+$mechBugsBase->submit();
+# get list of extension gateway pages
+my @bugsTopics = $mechBugsBase->getPageList( 'Bugs', { search => $plugin_topics } );
+
+# create new gateway page for each twiki.org extension
+foreach my $topic ( $mechTWikiDotOrg->getPageList( 'Plugins', { search => $plugin_topics } ) )
+{
+    my ( $extension ) = $topic =~ /^Plugins\.(.+)$/;            # get base topic name
+    next if grep { /^Bugs\.${extension}$/ } @bugsTopics;        # don't change any already there
+
+print "Creating $extension\n";
+$mechBugsBase->edit( "Bugs.$extension", {
+        templatetopic => 'ExtensionTemplate',
+        topicparent => 'Extension',
+    } );
+$mechBugsBase->click_button( value => 'Save' );
+sleep rand 3;                                               # be nice to the poor server
+}
+
 
 =head1 DEPENDENCIES
 
   CPAN:WWW::Mechanize
   CPAN:HTML::TableExtract
+  CPAN:MIME::Base64 (for authentication)
+
 
 =head1 SEE ALSO
 
 WWW::Mechanize, http://twiki.org
+
 
 =head1 TODO
 
@@ -325,13 +434,16 @@ WWW::Mechanize, http://twiki.org
 
   look into ways for a TWiki installation to "publish" its interface
 
+  TemplateLogin domains require different client code to login; look into making this happen transparently
+
 =head1 AUTHOR
 
 Will Norris, E<lt>wbniv@cpan.orgE<gt>
 
+
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2004 by Will Norris
+Copyright (C) 2004,2006 by Will Norris
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.4 or,
