@@ -1,5 +1,9 @@
 Revision history for Perl extension WWW::Mechanize::TWiki
 
+0.12 
+	- cgibin() returns correct information <http://rt.cpan.org/Public/Bug/Display.html?id=31689>
+	- 4 argument form of credentials no long supported by WWW::Mechanize <http://rt.cpan.org/Public/Bug/Display.html?id=31688>
+
 0.11  Sun Apr 24 17:35 2006
 	- expanded and clarified docs
 	- added several examples

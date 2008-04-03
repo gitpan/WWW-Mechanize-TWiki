@@ -1,4 +1,4 @@
-WWW-Mechanize-TWiki version 0.01
+WWW-Mechanize-TWiki version 0.12
 ================================
 
 The README is used to introduce the module and provide instructions on
@@ -31,7 +31,7 @@ COPYRIGHT AND LICENCE
 
 Put the correct copyright and licence information here.
 
-Copyright (C) 2004 by Will Norris
+Copyright (C) 2004,2005,2006,2008 by Will Norris <wbniv@cpan.org>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.4 or,

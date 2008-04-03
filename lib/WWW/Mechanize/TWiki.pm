@@ -10,7 +10,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 use WWW::Mechanize;
 use HTML::TableExtract;
@@ -31,8 +31,14 @@ sub credentials {
     my $self = shift;
     my @credentials = @_;
 
+    if ( @credentials == 4 ) {
+	# http://rt.cpan.org/Public/Bug/Display.html?id=31688
+	# 4 argument form no longer supprted by WWW::Mechanize
+	shift @credentials, shift @credentials;
+    }
+
     $self->SUPER::credentials( $self->{cgibin}, '', @credentials );
-    $self->add_header( Authorization => 'Basic ' . MIME::Base64::encode( $credentials[2] . ':' . $credentials[3] ) );
+    $self->add_header( Authorization => 'Basic ' . MIME::Base64::encode( $credentials[0] . ':' . $credentials[1] ) );
 }
 
 ################################################################################
@@ -46,7 +52,7 @@ sub cgibin {
     $self->{cgibin} = $cgibin;
     $self->{scriptSuffix} = $opts->{scriptSuffix} || '';
 
-    return $self;
+    return $self->{cgibin};
 }
 
 ################################################################################
@@ -82,7 +88,8 @@ sub getPageList
 	%{$overrides},			# overrides these defaults
     } );
 
-    my $topic = $xxx->content();		
+    warn "search: [", Dumper($xxx), "]\n";
+    my $topic = $xxx->content();
     $topic =~ s|^.+?$tagStartTopics||s;		# strip up to start tag
     $topic =~ s|<p />.+?$||s;				# strip after formatted output
 
